@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+
+<script id="vertex-shader" type="x-shader/x-vertex">#version 300 es
+
+in vec4 vPosition;
+in vec3 vNormal;
+in vec4 vColor; // Note this is not actually getting used the compiler will optimize it out which will throw vertexAttribPointer errors on javascript side
+in vec2 vTexCoord;
+
+out vec4 fColor;
+out vec2 fTexCoord;
+out vec3 fPos;
+out vec3 fLpos;
+out vec3 fN;
+
+uniform mediump vec4 ambientProduct, diffuseProduct, specularProduct;
+uniform mat4 modelViewMatrix;
+uniform mat4 normalMatrix;
+uniform mat4 projectionMatrix;
+uniform vec4 lightPosition;
+uniform mediump float shininess;
+
+
+void
+main()
+{    
+	fTexCoord = vTexCoord;
+    fPos = (modelViewMatrix * vPosition).xyz;
+    fN = normalize((normalMatrix*vec4(vNormal,0.0)).xyz);
+    // multiplying lightPosition by modelViewMatrix to keep it static
+    fLpos = (modelViewMatrix * lightPosition).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">#version 300 es
+
+precision mediump float;
+
+uniform sampler2D texture1;
+uniform sampler2D texture2;
+uniform int useTextures;
+
+uniform mediump vec4 ambientProduct, diffuseProduct, specularProduct;
+uniform mediump float shininess;
+
+in vec3 fPos;
+in vec3 fLpos;
+in vec3 fN;
+in vec2 fTexCoord;
+in vec4 fColor;
+
+layout(location=0) out vec4 fragColor ;
+
+vec4 ads(vec3 pos, vec3 lpos, vec3 N){
+    vec3 L = normalize(lpos - pos);
+    vec3 V = normalize(-pos);
+    vec3 H = normalize(L + V);
+
+    float lightDotNormal = max(dot(L, N), 0.0);
+    vec4 diffuse = vec4(0.0, 0.0, 0.0, 1.0);
+    diffuse = diffuseProduct * lightDotNormal;
+
+    float halfwayDotViewShiny = pow( max(dot(H, N), 0.0), shininess );
+    vec4 specular = vec4(0.0, 0.0, 0.0, 1.0);
+    specular = specularProduct * halfwayDotViewShiny;
+    
+    if( dot(L, N) < 0.0 ) {
+        specular = vec4(0.0, 0.0, 0.0, 0.5);
+    }
+
+    vec4 color = ambientProduct + diffuse + specular;
+    color.a = 1.0;
+    return color;
+}
+
+vec4 gradient_effect(vec4 c1, vec4 c2){
+    // creates a gradient affect by mixing two colors and changing
+    // alpha value as v value in uv-map increases
+    return mix(c1, c2, 0.0 + (fTexCoord.y - 0.5) * 2.0);
+}
+
+void
+main(){
+    vec4 BlinnPhong = ads(fPos, fLpos, fN);
+	if( useTextures == 1){
+		fragColor = texture( texture2, fTexCoord ) * BlinnPhong;
+        if(fTexCoord.x > 0.15 && fTexCoord.x < 0.35 && fTexCoord.y > 0.65 && fTexCoord.y < 0.85){
+            // drawing windows
+            fragColor = vec4(0.447f, 0.831f, 0.831f, 1.0f) * BlinnPhong;
+        }if(fTexCoord.x > 0.48 || fTexCoord.x < 0.02){
+            // drawing corners of the house
+            fragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f) * BlinnPhong;
+        }
+	}else if(useTextures == 2){
+        fragColor = texture( texture1, fTexCoord ) * BlinnPhong;
+        if(fTexCoord.x > 0.45 && fTexCoord.x < 0.55 && fTexCoord.y < 0.5){
+            // drawing path
+            fragColor = vec4(0.68359375f, 0.5f, 0.30859375f, 1.0f) * BlinnPhong;
+        }
+    }else if(useTextures == 3){
+        vec4 orange = vec4(255.0/256.0, 150.0/256.0, 28.0/256.0, 1.0);
+        vec4 blue = vec4(0.15, 0.97, 0.99, 1.0);
+        fragColor = gradient_effect(orange, blue) * BlinnPhong;
+    }else{
+        fragColor = ads(fPos, fLpos, fN);
+    }
+}
+</script>
+
+<script type="text/javascript" src="Common/webgl-utils.js"></script>
+<script type="text/javascript" src="Common/initShaders.js"></script>
+
+<script type="text/javascript" src="Common/MV.js"></script>
+<script type="text/javascript" src="objects.js"></script>
+<script type="text/javascript" src="main.js"></script>
+
+
+<body>
+<canvas id="gl-canvas" width="512" height="512">
+Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+
+<br/>
+<br/>
+
+<div id="animToggleButton">
+    <input id="animToggleButton" type="button" value="Toggle Animation"
+    />
+
+</div><br/>
+</body>
+</html>
